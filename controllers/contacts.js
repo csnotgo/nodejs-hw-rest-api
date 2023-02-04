@@ -1,14 +1,21 @@
 const { Contact } = require("../models/contact");
 const RequestError = require("../helpers/RequestError");
 
-const getAll = async (_, res, __) => {
-  const result = await Contact.find();
+const getAll = async (req, res, _) => {
+  const { id } = req.user;
+  const { favorite } = req.query;
+
+  const result = await Contact.find({ owner: id })
+    .populate("owner", "email subscription")
+    .sort(favorite ? { favorite: -1 } : {})
+    .skip(2);
   res.json(result);
 };
 
 const getById = async (req, res, _) => {
+  const { id } = req.user;
   const { contactId } = req.params;
-  const result = await Contact.findById(contactId);
+  const result = await Contact.findOne({ owner: id, _id: contactId }).populate("owner", "email subscription");
   if (!result) {
     throw RequestError(404, "Not found");
   }
@@ -16,7 +23,8 @@ const getById = async (req, res, _) => {
 };
 
 const addNew = async (req, res, _) => {
-  const result = await Contact.create(req.body);
+  const { id } = req.user;
+  const result = await Contact.create({ ...req.body, owner: id });
   if (!result) {
     throw RequestError(404, "Not found");
   }
@@ -24,8 +32,9 @@ const addNew = async (req, res, _) => {
 };
 
 const removeById = async (req, res, _) => {
+  const { id } = req.user;
   const { contactId } = req.params;
-  const result = await Contact.findByIdAndRemove(contactId);
+  const result = await Contact.findOneAndRemove({ owner: id, _id: contactId });
   if (!result) {
     throw RequestError(404, "Not found");
   }
@@ -33,8 +42,9 @@ const removeById = async (req, res, _) => {
 };
 
 const updateById = async (req, res, _) => {
+  const { id } = req.user;
   const { contactId } = req.params;
-  const result = await Contact.findByIdAndUpdate(contactId, req.body, {
+  const result = await Contact.findOneAndUpdate({ owner: id, _id: contactId }, req.body, {
     new: true,
   });
   if (!result) {
@@ -44,8 +54,9 @@ const updateById = async (req, res, _) => {
 };
 
 const updateFavStatus = async (req, res, _) => {
+  const { id } = req.user;
   const { contactId } = req.params;
-  const result = await Contact.findByIdAndUpdate(contactId, req.body, {
+  const result = await Contact.findOneAndUpdate({ owner: id, _id: contactId }, req.body, {
     new: true,
   });
   if (!result) {
