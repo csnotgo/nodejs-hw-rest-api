@@ -1,9 +1,15 @@
+const fs = require("fs/promises");
+const path = require("path");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const gravatar = require("gravatar");
+const Jimp = require("jimp");
 const { User } = require("../models/user");
 const RequestError = require("../helpers/RequestError");
 
 const { SECRET_KEY } = process.env;
+
+const avatarDir = path.join(__dirname, "../", "public", "avatars");
 
 const register = async (req, res) => {
   const { email, password } = req.body;
@@ -14,8 +20,9 @@ const register = async (req, res) => {
   }
 
   const hashPassword = await bcrypt.hash(password, 10);
-  const result = await User.create({ email, password: hashPassword });
-  res.status(201).json({ email: result.email, subscription: result.subscription });
+  const avatarURL = gravatar.url(email);
+  const result = await User.create({ email, password: hashPassword, avatarURL });
+  res.status(201).json({ email: result.email, subscription: result.subscription, avatarUrl: result.avatarURL });
 };
 
 const login = async (req, res) => {
@@ -60,4 +67,25 @@ const subscription = async (req, res) => {
   res.json({ subscription: result.subscription });
 };
 
-module.exports = { register, login, logout, current, subscription };
+const avatar = async (req, res) => {
+  const { id } = req.user;
+
+  const { path: uploadTmp, originalname } = req.file;
+  const extention = originalname.split(".").pop();
+  const filename = `${id}.${extention}`;
+
+  const result = path.join(avatarDir, filename);
+  await fs.rename(uploadTmp, result);
+
+  Jimp.read(result, (err, avatar) => {
+    if (err) throw err;
+    avatar.resize(250, 250).write(result);
+  });
+
+  const avatarURL = path.join("avatars", filename);
+  await User.findByIdAndUpdate(id, { avatarURL });
+
+  res.json({ avatarURL });
+};
+
+module.exports = { register, login, logout, current, subscription, avatar };
